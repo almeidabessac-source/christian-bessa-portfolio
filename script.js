@@ -23,11 +23,23 @@ dialog.addEventListener('click', event => { if(event.target === dialog) { const 
  if(!videos.length)return;
  try{
   if(!('serviceWorker' in navigator))throw Error('Video playback unavailable');
-  await navigator.serviceWorker.register('media-worker.js');
+  const controlled=new Promise(resolve=>{
+   if(navigator.serviceWorker.controller){resolve(true);return;}
+   const timer=setTimeout(()=>resolve(Boolean(navigator.serviceWorker.controller)),10000);
+   const check=()=>{
+    if(!navigator.serviceWorker.controller)return;
+    clearTimeout(timer);
+    navigator.serviceWorker.removeEventListener('controllerchange',check);
+    resolve(true);
+   };
+   navigator.serviceWorker.addEventListener('controllerchange',check);
+   check();
+  });
+  await navigator.serviceWorker.register('media-worker.js',{updateViaCache:'none'});
   await navigator.serviceWorker.ready;
-  if(!navigator.serviceWorker.controller)await new Promise(resolve=>navigator.serviceWorker.addEventListener('controllerchange',resolve,{once:true}));
-  for(const video of videos){video.src=video.dataset.mediaSrc;video.load();}
+  if(!await controlled)throw Error('Video playback controller did not become ready');
+  for(const video of videos){video.src=new URL(video.dataset.mediaSrc,document.baseURI).href;video.load();}
  }catch(error){
-  for(const video of videos){const note=document.createElement('p');note.textContent='Please reload the page to play this video.';video.parentElement.append(note);}
+  for(const video of videos){const note=document.createElement('p');note.textContent='This video could not be loaded. Please refresh the page and try again.';video.parentElement.append(note);}
  }
 })();

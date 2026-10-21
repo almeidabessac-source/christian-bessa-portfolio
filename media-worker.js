@@ -3,7 +3,11 @@ self.addEventListener('install',event=>event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
 self.addEventListener('fetch',event=>{
  const url=new URL(event.request.url);
- const file=url.origin===self.location.origin?media['/'+url.href.slice(self.registration.scope.length)]:null;
+ const scope=new URL(self.registration.scope);
+ const key=url.origin===scope.origin&&url.pathname.startsWith(scope.pathname)
+  ?'/'+url.pathname.slice(scope.pathname.length)
+  :null;
+ const file=key?media[key]:null;
  if(file && ['GET','HEAD'].includes(event.request.method))event.respondWith(serve(event.request,file));
 });
 async function serve(request,file){
@@ -25,7 +29,7 @@ async function serve(request,file){
    try{
     if(cursor>end){controller.close();return;}
     const index=Math.floor(cursor/file.chunkSize),chunkStart=index*file.chunkSize;
-    const response=await fetch(new URL(file.chunks[index],self.registration.scope),{signal:abort.signal});
+    const response=await fetch(new URL(file.chunks[index],self.registration.scope),{signal:abort.signal,cache:'no-store'});
     if(!response.ok)throw Error('Unable to load video');
     const bytes=new Uint8Array(await response.arrayBuffer());
     const until=Math.min(end+1,chunkStart+bytes.length);
